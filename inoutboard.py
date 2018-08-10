@@ -8,34 +8,33 @@ import http.client
 import smbus2
 import json
 
-btaddrsWeCareAbout=[{ '5C:51:81:A2:D6:AE': "Barney"}]
 
-lightActions={ "homeAlone":[
-				# kitchen
-				"sonoff_a799d7.local"
-				],
-		"full":[
-				# kitchen
-				"sonoff_a799d7.local",
-				"sonoff_68ecd4.local",
-				"sonoff_2dacf4.local"
 
-				]
-		}
+def sendOut(list, command):	
+	for each in list:
+		print (each)
+		conn=http.client.HTTPConnection(each)
+		if command=='ON':
+			conn.request(url="/button?action=on&port=0", method="GET")
+
+		if command=='OFF':
+			conn.request(url="/button?action=off&port=0", method="GET")
+
+		r=conn.getresponse()
+
+
+
+
+
+
+
 
 currentConfig=json.load(open('/home/pi/bluetooth/config.json'))
 currentState=json.load(open('/home/pi/bluetooth/state.json'))
 
-
 btaddrsWeCareAbout=currentConfig["BTaddresses"]
 lightActions=currentConfig["Actions"]
 
-print(btaddrsWeCareAbout,lightActions)
-
-
-if currentState['current']==sys.argv[1]:
-	print("bailed")
-	sys.exit(0)
 
 print ("In/Out Board")
 
@@ -66,33 +65,60 @@ for line in btaddrsWeCareAbout:
 			isanyonein=True
 		else:
 			print("out")
+
+# if we're the same as last time - bail
+if currentState['current']==sys.argv[1] and currentState['occupied']==isanyonein:
+	print("bailed")
+	sys.exit(0)
+
+
 thingsToPing=[]
 
-if luxValue < minLuxValue:
-	if isanyonein==False:
-		thingsToPing=lightActions['homeAlone']
+
+# now, we do some working out ...
+
+if currentState['current']=="OFF" and sys.argv[1]=="ON":
+	print ("from OFF to ON check")
+	if luxValue < minLuxValue:
+		if isanyonein==False:
+			print ("vacant ON")
+			sendOut(lightActions['vacant'], "ON")
+		else:
+			print ("occupied ON")
+			sendOut(lightActions['occupied'], "ON")
 	else:
-		# we don't want it turning things OFF when we're here
-		if sys.argv[1]=="ON":
-			thingsToPing=lightActions['full']
+		print ("too bright")
+	
 
-	for each in thingsToPing:
-		print (each)
-		conn=http.client.HTTPConnection(each)
-		if sys.argv[1]=='ON':
-			# http://sonoff_a799d7.local/button?action=on&port=0
-			conn.request(url="/button?action=on&port=0", method="GET")
 
-		if sys.argv[1]=='OFF':
-			# http://sonoff_a799d7.local/button?action=on&port=0
-			conn.request(url="/button?action=off&port=0", method="GET")
 
-		r=conn.getresponse()
+if currentState['current']=="ON":
+	if sys.argv[1]=="OFF":
+		print ("from ON to OFF")
+		if isanyonein==False:
+			sendOut(lightActions['vacant'], "OFF")
+			print ("vacant OFF")
+	else:
+		if isanyonein!=currentState['occupied']:
+			print ("vacancy transition")
+			if isanyonein==True:
+				print ("to occupied")
+				sendOut(lightActions['vacant'],"OFF")
+				sendOut(lightActions['occupied'],"ON")
+			else:
+				print ("to vacant")
+				sendOut(lightActions['occupied'],"OFF")
+				sendOut(lightActions['vacant'],"ON")
 
-	currentState['current']=sys.argv[1]
-	with open('/home/pi/bluetooth/state.json', 'w') as outfile:
-	    json.dump(currentState, outfile)
 
-else:
-	print("too bright!")
+currentState['occupied']=isanyonein
+currentState['current']=sys.argv[1]
+with open('/home/pi/bluetooth/state.json', 'w') as outfile:
+    json.dump(currentState, outfile)
+
+
+
+
+
+
 
