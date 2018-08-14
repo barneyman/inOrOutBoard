@@ -12,15 +12,18 @@ import json
 
 def sendOut(list, command):	
 	for each in list:
-		print (each)
-		conn=http.client.HTTPConnection(each)
-		if command=='ON':
-			conn.request(url="/button?action=on&port=0", method="GET")
+		try:
+			print (each)
+			conn=http.client.HTTPConnection(each)
+			if command=='ON':
+				conn.request(url="/button?action=on&port=0", method="GET")
 
-		if command=='OFF':
-			conn.request(url="/button?action=off&port=0", method="GET")
+			if command=='OFF':
+				conn.request(url="/button?action=off&port=0", method="GET")
 
-		r=conn.getresponse()
+			r=conn.getresponse()
+		except:
+			print("Exception in http request")
 
 
 
@@ -63,6 +66,7 @@ for line in btaddrsWeCareAbout:
 		if(result!=None):
 			print("in")
 			isanyonein=True
+			break
 		else:
 			print("out")
 
@@ -80,14 +84,17 @@ thingsToPing=[]
 if currentState['current']=="OFF" and sys.argv[1]=="ON":
 	print ("from OFF to ON check")
 	if luxValue < minLuxValue:
+		# it's got dark enough to care ...
 		if isanyonein==False:
 			print ("vacant ON")
 			sendOut(lightActions['vacant'], "ON")
+			currentState['current']="ON"
 		else:
 			print ("occupied ON")
 			sendOut(lightActions['occupied'], "ON")
+			currentState['current']="ON"
 	else:
-		print ("too bright")
+		print ("too bright ", luxValue)
 	
 
 
@@ -98,6 +105,13 @@ if currentState['current']=="ON":
 		if isanyonein==False:
 			sendOut(lightActions['vacant'], "OFF")
 			print ("vacant OFF")
+			currentState['current']="OFF"
+
+	elif sys.argv[1]=="FORCE_OFF":
+			sendOut(lightActions['vacant'], "OFF")
+			sendOut(lightActions['occupied'], "OFF")
+			currentState['current']="OFF"
+
 	else:
 		if isanyonein!=currentState['occupied']:
 			print ("vacancy transition")
@@ -110,9 +124,11 @@ if currentState['current']=="ON":
 				sendOut(lightActions['occupied'],"OFF")
 				sendOut(lightActions['vacant'],"ON")
 
+			currentState['current']="ON"
+
 
 currentState['occupied']=isanyonein
-currentState['current']=sys.argv[1]
+
 with open('/home/pi/bluetooth/state.json', 'w') as outfile:
     json.dump(currentState, outfile)
 
