@@ -45,7 +45,7 @@ print ("In/Out Board")
 
 i2cbus=smbus2.SMBus(1)
 luxAddress=0x4a
-minLuxValue=250
+minLuxValue=350
 
 msb=i2cbus.read_byte_data(luxAddress,0x3)
 lsb=i2cbus.read_byte_data(luxAddress,0x4)
