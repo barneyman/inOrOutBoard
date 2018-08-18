@@ -9,21 +9,40 @@ import smbus2
 import json
 
 
+#lightActions['vacant'],lightActions['occupied'])
+def sendOutOffOn(offlist, onlist): 
+	aggregateList={}
+	for each in offlist:
+		aggregateList[each]="OFF"
+	# rely on replacements/overrides
+	for each in onlist:
+		aggregateList[each]="ON"
+
+	print (aggregateList)
+
+	for key, value in aggregateList.items():
+		print(key,":",value)
+		sendOutOne(key,value)
+
 
 def sendOut(list, command):	
 	for each in list:
-		try:
-			print (each)
-			conn=http.client.HTTPConnection(each)
-			if command=='ON':
-				conn.request(url="/button?action=on&port=0", method="GET")
+		sendOutOne(each,command)
 
-			if command=='OFF':
-				conn.request(url="/button?action=off&port=0", method="GET")
 
-			r=conn.getresponse()
-		except:
-			print("Exception in http request")
+
+def sendOutOne(each, command):	
+	try:
+		print (each,command)
+		conn=http.client.HTTPConnection(each)
+		if command=='ON':
+			conn.request(url="/button?action=on&port=0", method="GET")
+		if command=='OFF':
+			conn.request(url="/button?action=off&port=0", method="GET")
+
+		r=conn.getresponse()
+	except:
+		print("Exception in http request")
 
 
 
@@ -45,7 +64,7 @@ print ("In/Out Board")
 
 i2cbus=smbus2.SMBus(1)
 luxAddress=0x4a
-minLuxValue=350
+minLuxValue=1000
 
 msb=i2cbus.read_byte_data(luxAddress,0x3)
 lsb=i2cbus.read_byte_data(luxAddress,0x4)
@@ -58,6 +77,7 @@ luxValue=mantissa * 2**exponent
 print ("Checking " + time.strftime("%a, %d %b %Y %H:%M:%S", time.gmtime()))
 print ("lux is ", luxValue)
 
+# check all the BT addresse we care about
 isanyonein=False
 for line in btaddrsWeCareAbout:
 	for key, val in line.items():
@@ -70,6 +90,10 @@ for line in btaddrsWeCareAbout:
 		else:
 			print("out")
 
+# DEBUG - hmm - python ternery!
+# isanyonein= False if currentState['occupied']==True else True
+
+
 # if we're the same as last time - bail
 if currentState['current']==sys.argv[1] and currentState['occupied']==isanyonein:
 	print("bailed")
@@ -81,6 +105,7 @@ thingsToPing=[]
 
 # now, we do some working out ...
 
+# 'normal' use case - OFF turning to ON
 if currentState['current']=="OFF" and sys.argv[1]=="ON":
 	print ("from OFF to ON check")
 	if luxValue < minLuxValue:
@@ -95,10 +120,10 @@ if currentState['current']=="OFF" and sys.argv[1]=="ON":
 			currentState['current']="ON"
 	else:
 		print ("too bright ", luxValue)
-	
 
 
 
+# if we think we're on ...
 if currentState['current']=="ON":
 	if sys.argv[1]=="OFF":
 		print ("from ON to OFF")
@@ -112,20 +137,24 @@ if currentState['current']=="ON":
 			sendOut(lightActions['occupied'], "OFF")
 			currentState['current']="OFF"
 
-	else:
+	# sys.argv==ON by elimination
+	elif sys.argv[1]=="ON":
 		if isanyonein!=currentState['occupied']:
 			print ("vacancy transition")
 			if isanyonein==True:
 				print ("to occupied")
-				sendOut(lightActions['vacant'],"OFF")
-				sendOut(lightActions['occupied'],"ON")
+				sendOutOffOn(lightActions['vacant'],lightActions['occupied'])
+#				sendOut(lightActions['vacant'],"OFF")
+#				sendOut(lightActions['occupied'],"ON")
 			else:
 				print ("to vacant")
-				sendOut(lightActions['occupied'],"OFF")
-				sendOut(lightActions['vacant'],"ON")
-
+				sendOutOffOn(lightActions['occupied'],lightActions['vacant'])
+#				sendOut(lightActions['occupied'],"OFF")
+#				sendOut(lightActions['vacant'],"ON")
 			currentState['current']="ON"
 
+	else:
+		print (currentState)
 
 currentState['occupied']=isanyonein
 
