@@ -7,6 +7,7 @@ import sys
 import http.client
 import smbus2
 import json
+from bjfHA import bjfHA
 
 
 #lightActions['vacant'],lightActions['occupied'])
@@ -54,8 +55,10 @@ def sendOutOne(each, command):
 currentConfig=json.load(open('/home/pi/bluetooth/config.json'))
 currentState=json.load(open('/home/pi/bluetooth/state.json'))
 
+myHA=bjfHA('/home/pi/HA/config.json')
+
 btaddrsWeCareAbout=currentConfig["BTaddresses"]
-lightActions=currentConfig["Actions"]
+#lightActions=currentConfig["Actions"]
 
 
 print ("In/Out Board")
@@ -76,6 +79,16 @@ luxValue=mantissa * 2**exponent
 
 print ("Checking " + time.strftime("%a, %d %b %Y %H:%M:%S", time.gmtime()))
 print ("lux is ", luxValue)
+
+if len(sys.argv)==1:
+	print(sys.argv[0]," ON|OFF|FORCE_OFF")
+	print("sends moods to HA based on the request and the current occupancy state")
+	exit()
+
+debug=False
+if "-x" in sys.argv:
+	debug=True
+	print ("Debug - ignoring lux")
 
 # check all the BT addresse we care about
 isanyonein=False
@@ -108,15 +121,17 @@ thingsToPing=[]
 # 'normal' use case - OFF turning to ON
 if currentState['current']=="OFF" and sys.argv[1]=="ON":
 	print ("from OFF to ON check")
-	if luxValue < minLuxValue:
+	if (luxValue < minLuxValue) or (debug==True):
 		# it's got dark enough to care ...
 		if isanyonein==False:
 			print ("vacant ON")
-			sendOut(lightActions['vacant'], "ON")
+			#sendOut(lightActions['vacant'], "ON")
+			myHA.setMood("vacant_fakeOccupancy")
 			currentState['current']="ON"
 		else:
 			print ("occupied ON")
-			sendOut(lightActions['occupied'], "ON")
+			#sendOut(lightActions['occupied'], "ON")
+			myHA.setMood("occupied")
 			currentState['current']="ON"
 	else:
 		print ("too bright ", luxValue)
@@ -128,13 +143,15 @@ if currentState['current']=="ON":
 	if sys.argv[1]=="OFF":
 		print ("from ON to OFF")
 		if isanyonein==False:
-			sendOut(lightActions['vacant'], "OFF")
+			#sendOut(lightActions['vacant'], "OFF")
+			myHA.setMood("vacant")
 			print ("vacant OFF")
 			currentState['current']="OFF"
 
 	elif sys.argv[1]=="FORCE_OFF":
-			sendOut(lightActions['vacant'], "OFF")
-			sendOut(lightActions['occupied'], "OFF")
+			#sendOut(lightActions['vacant'], "OFF")
+			#sendOut(lightActions['occupied'], "OFF")
+			myHA.setMood("vacant")
 			currentState['current']="OFF"
 
 	# sys.argv==ON by elimination
@@ -143,14 +160,12 @@ if currentState['current']=="ON":
 			print ("vacancy transition")
 			if isanyonein==True:
 				print ("to occupied")
-				sendOutOffOn(lightActions['vacant'],lightActions['occupied'])
-#				sendOut(lightActions['vacant'],"OFF")
-#				sendOut(lightActions['occupied'],"ON")
+				#sendOutOffOn(lightActions['vacant'],lightActions['occupied'])
+				myHA.setMood("occupied")
 			else:
 				print ("to vacant")
-				sendOutOffOn(lightActions['occupied'],lightActions['vacant'])
-#				sendOut(lightActions['occupied'],"OFF")
-#				sendOut(lightActions['vacant'],"ON")
+				#sendOutOffOn(lightActions['occupied'],lightActions['vacant'])
+				myHA.setMood("vacant_fakeOccupancy")
 			currentState['current']="ON"
 
 	else:
